@@ -7,10 +7,12 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
-var Analyzer = &analysis.Analyzer{
-	Name: "parenlint",
-	Doc:  "Checks that arguments in call expressions are all on separate lines, and also not on the same lines as the parentheses",
-	Run:  run,
+func Analyzer() *analysis.Analyzer {
+	return &analysis.Analyzer{
+		Name: "parenlint",
+		Doc:  "Checks that arguments in call expressions are all on separate lines, and also not on the same lines as the parentheses",
+		Run:  run,
+	}
 }
 
 func run(pass *analysis.Pass) (any, error) {

@@ -6,5 +6,5 @@ import (
 )
 
 func main() {
-	singlechecker.Main(parenlint.Analyzer)
+	singlechecker.Main(parenlint.Analyzer())
 }

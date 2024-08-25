@@ -7,5 +7,5 @@ import (
 )
 
 func TestParenLint(t *testing.T) {
-	analysistest.Run(t, analysistest.TestData(), Analyzer)
+	analysistest.Run(t, analysistest.TestData(), Analyzer())
 }
