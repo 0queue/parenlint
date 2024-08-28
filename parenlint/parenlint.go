@@ -30,21 +30,56 @@ func run(pass *analysis.Pass) (any, error) {
 				return true
 			}
 
+			type report struct {
+				pos token.Pos
+				msg string
+			}
+
+			reports := make([]report, 0)
+
+			// only report if we are not in a "hanging final arg" situation
+			isValidHangingFinalArg := true
+
 			var prevEnd *token.Position
-			for _, e := range fc.Args {
+			for i, e := range fc.Args {
 				start := pass.Fset.Position(e.Pos())
 				end := pass.Fset.Position(e.End())
 
+				if start.Line != lparen {
+					isValidHangingFinalArg = false
+				}
+
+				if i == len(fc.Args)-1 && end.Line != rparen {
+					isValidHangingFinalArg = false
+				}
+
 				switch {
 				case start.Line == lparen:
-					pass.Reportf(e.Pos(), "Argument on same line as left paren")
+					reports = append(reports, report{
+						pos: e.Pos(),
+						msg: "Argument on same line as left paren",
+					})
 				case end.Line == rparen:
-					pass.Reportf(e.Pos(), "Argument on same line as right paren")
+					reports = append(reports, report{
+						pos: e.Pos(),
+						msg: "Argument on same line as right paren",
+					})
 				case prevEnd != nil && start.Line == prevEnd.Line:
-					pass.Reportf(e.Pos(), "Argument on same line as previous argument")
+					reports = append(reports, report{
+						pos: e.Pos(),
+						msg: "Argument on same line as previous argument",
+					})
 				}
 
 				prevEnd = &end
+			}
+
+			if isValidHangingFinalArg {
+				return true
+			}
+
+			for _, r := range reports {
+				pass.Reportf(r.pos, r.msg)
 			}
 
 			return true

@@ -24,4 +24,8 @@ func stuff() {
 		"a"+
 			"b", "c", // want `Argument on same line as previous argument`
 	)
+
+	fmt.Println("hanging func?", func() string {
+		return "all good"
+	}())
 }
