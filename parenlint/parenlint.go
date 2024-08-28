@@ -2,15 +2,19 @@ package parenlint
 
 import (
 	"go/ast"
-	"go/token"
 
 	"golang.org/x/tools/go/analysis"
+)
+
+const (
+	singleLineMsg = "Single line function call with arguments on multiple lines"
+	multiLineMsg  = "Multiline function call with multiple arguments on single line"
 )
 
 func Analyzer() *analysis.Analyzer {
 	return &analysis.Analyzer{
 		Name: "parenlint",
-		Doc:  "Checks that arguments in call expressions are all on separate lines, and also not on the same lines as the parentheses",
+		Doc:  "Checks that function call arguments are all in a single line, or all on multiple lines.",
 		Run:  run,
 	}
 }
@@ -23,63 +27,39 @@ func run(pass *analysis.Pass) (any, error) {
 				return true
 			}
 
-			lparen := pass.Fset.Position(fc.Lparen).Line
-			rparen := pass.Fset.Position(fc.Rparen).Line
+			lparen := pass.Fset.Position(fc.Lparen)
+			rparen := pass.Fset.Position(fc.Rparen)
 
-			if lparen == rparen {
-				return true
-			}
+			isSingleLine := true
+			prevEnd := lparen
 
-			type report struct {
-				pos token.Pos
-				msg string
-			}
-
-			reports := make([]report, 0)
-
-			// only report if we are not in a "hanging final arg" situation
-			isValidHangingFinalArg := true
-
-			var prevEnd *token.Position
 			for i, e := range fc.Args {
 				start := pass.Fset.Position(e.Pos())
 				end := pass.Fset.Position(e.End())
 
-				if start.Line != lparen {
-					isValidHangingFinalArg = false
-				}
-
-				if i == len(fc.Args)-1 && end.Line != rparen {
-					isValidHangingFinalArg = false
+				if i == 0 {
+					isSingleLine = lparen.Line == start.Line
 				}
 
 				switch {
-				case start.Line == lparen:
-					reports = append(reports, report{
-						pos: e.Pos(),
-						msg: "Argument on same line as left paren",
-					})
-				case end.Line == rparen:
-					reports = append(reports, report{
-						pos: e.Pos(),
-						msg: "Argument on same line as right paren",
-					})
-				case prevEnd != nil && start.Line == prevEnd.Line:
-					reports = append(reports, report{
-						pos: e.Pos(),
-						msg: "Argument on same line as previous argument",
-					})
+				case isSingleLine && prevEnd.Line != start.Line:
+					pass.Reportf(fc.Pos(), singleLineMsg)
+					return true
+				case !isSingleLine && prevEnd.Line == start.Line:
+					pass.Reportf(fc.Pos(), multiLineMsg)
+					return true
 				}
 
-				prevEnd = &end
+				prevEnd = end
 			}
 
-			if isValidHangingFinalArg {
+			switch {
+			case isSingleLine && prevEnd.Line != rparen.Line:
+				pass.Reportf(fc.Pos(), singleLineMsg)
 				return true
-			}
-
-			for _, r := range reports {
-				pass.Reportf(r.pos, r.msg)
+			case !isSingleLine && prevEnd.Line == rparen.Line:
+				pass.Reportf(fc.Pos(), multiLineMsg)
+				return true
 			}
 
 			return true

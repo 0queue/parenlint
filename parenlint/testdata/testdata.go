@@ -12,20 +12,26 @@ func stuff() {
 		"fine",
 	)
 
-	fmt.Println("a", // want `Argument on same line as left paren`
-		"b", "c", "d", // want `Argument on same line as previous argument` `Argument on same line as previous argument`
-		"e") // want `Argument on same line as right paren`
+	fmt.Println("a", // want `Single line function call with arguments on multiple lines`
+		"b", "c", "d",
+		"e")
 
-	fmt.Println(
-		"a" + // want `Argument on same line as right paren`
+	fmt.Println( // want `Multiline function call with multiple arguments on single line`
+		"a" +
 			"b")
 
-	fmt.Println(
+	fmt.Println( // want `Multiline function call with multiple arguments on single line`
 		"a"+
-			"b", "c", // want `Argument on same line as previous argument`
+			"b", "c",
 	)
 
 	fmt.Println("hanging func?", func() string {
 		return "all good"
+	}())
+
+	fmt.Println("weird but okay", func() string {
+		return "string"
+	}, "I guess", func() string {
+		return "string"
 	}())
 }
