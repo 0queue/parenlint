@@ -1,7 +1,9 @@
 package parenlint
 
 import (
+	"cmp"
 	"go/ast"
+	"go/token"
 
 	"golang.org/x/tools/go/analysis"
 )
@@ -21,6 +23,10 @@ func Analyzer() *analysis.Analyzer {
 
 func run(pass *analysis.Pass) (any, error) {
 	for _, file := range pass.Files {
+		if ast.IsGenerated(file) {
+			continue
+		}
+
 		ast.Inspect(file, func(n ast.Node) bool {
 			fc, ok := n.(*ast.CallExpr)
 			if !ok {
@@ -33,6 +39,9 @@ func run(pass *analysis.Pass) (any, error) {
 			isSingleLine := true
 			prevEnd := lparen
 
+			edits := make([]analysis.TextEdit, 0)
+			var errorMsg *string
+
 			for i, e := range fc.Args {
 				start := pass.Fset.Position(e.Pos())
 				end := pass.Fset.Position(e.End())
@@ -43,11 +52,18 @@ func run(pass *analysis.Pass) (any, error) {
 
 				switch {
 				case isSingleLine && prevEnd.Line != start.Line:
-					pass.Reportf(fc.Pos(), singleLineMsg)
-					return true
+					errorMsg = cmp.Or(errorMsg, ptr(singleLineMsg))
 				case !isSingleLine && prevEnd.Line == start.Line:
-					pass.Reportf(fc.Pos(), multiLineMsg)
-					return true
+					errorMsg = cmp.Or(errorMsg, ptr(multiLineMsg))
+				}
+
+				// fixes will always turn into multiline
+				if prevEnd.Line == start.Line {
+					edits = append(edits, analysis.TextEdit{
+						Pos:     e.Pos(),
+						End:     token.NoPos,
+						NewText: []byte("\n"),
+					})
 				}
 
 				prevEnd = end
@@ -55,11 +71,33 @@ func run(pass *analysis.Pass) (any, error) {
 
 			switch {
 			case isSingleLine && prevEnd.Line != rparen.Line:
-				pass.Reportf(fc.Pos(), singleLineMsg)
-				return true
+				errorMsg = cmp.Or(errorMsg, ptr(singleLineMsg))
 			case !isSingleLine && prevEnd.Line == rparen.Line:
-				pass.Reportf(fc.Pos(), multiLineMsg)
-				return true
+				errorMsg = cmp.Or(errorMsg, ptr(multiLineMsg))
+			}
+
+			if prevEnd.Line == rparen.Line {
+				edits = append(edits, analysis.TextEdit{
+					Pos:     fc.Rparen,
+					End:     token.NoPos,
+					NewText: []byte(",\n"),
+				})
+			}
+
+			if errorMsg != nil {
+				pass.Report(analysis.Diagnostic{
+					Pos:     fc.Pos(),
+					End:     fc.End(),
+					Message: *errorMsg,
+					URL:     "",
+					SuggestedFixes: []analysis.SuggestedFix{
+						{
+							Message:   "Make function call multiline",
+							TextEdits: edits,
+						},
+					},
+					Related: []analysis.RelatedInformation{},
+				})
 			}
 
 			return true
@@ -67,4 +105,8 @@ func run(pass *analysis.Pass) (any, error) {
 	}
 
 	return nil, nil
+}
+
+func ptr[T any](t T) *T {
+	return &t
 }
