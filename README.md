@@ -2,6 +2,8 @@
 
 Checks that arguments to function calls are all on the same line, or on multiple lines.
 
+Also checks that function definitions follow these rules.
+
 Good:
 
 ```go
