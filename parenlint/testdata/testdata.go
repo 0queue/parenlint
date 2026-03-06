@@ -35,3 +35,65 @@ func stuff() {
 		return "string"
 	}())
 }
+
+func thisisfine(a int) {
+	fmt.Println(a)
+}
+
+func thisisalsofine(
+	a int,
+	b string,
+) {
+	fmt.Println(a, b)
+}
+
+func thisisnotfine(b int, // want `Single line function type with arguments on multiple lines`
+) {
+	fmt.Println(b)
+}
+
+func multisingleline( // want `Multiline function call with multiple arguments on single line`
+	a int, b string,
+) {
+	fmt.Println(a, b)
+}
+
+func longtype(a int, b struct {
+	i int
+}, c string) {
+	fmt.Println(a, b, c)
+}
+
+func youthoughtIforgotaboutfuncexprs() {
+	a := func(a int) {}
+
+	_ = a
+
+	b := func(
+		a int,
+		b int,
+	) {
+	}
+
+	_ = b
+
+	c := func(a int, // want `Single line function call with arguments on multiple lines`
+		b int) {
+	}
+
+	_ = c
+
+	d := func( // want `Multiline function call with multiple arguments on single line`
+		a int, b int,
+	) {
+	}
+
+	_ = d
+
+	e := func(string, struct {
+		i int
+	}, int) {
+	}
+
+	_ = e
+}

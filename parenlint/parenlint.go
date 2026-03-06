@@ -9,8 +9,10 @@ import (
 )
 
 const (
-	singleLineMsg = "Single line function call with arguments on multiple lines"
-	multiLineMsg  = "Multiline function call with multiple arguments on single line"
+	singleLineCallExprMsg = "Single line function call with arguments on multiple lines"
+	multiLineCallExprMsg  = "Multiline function call with multiple arguments on single line"
+	singleLineFuncTypeMsg = "Single line function type with arguments on multiple lines"
+	multiLineFuncTypeMsg  = "Multiline function type with multiple arguments on single line"
 )
 
 func Analyzer() *analysis.Analyzer {
@@ -28,79 +30,14 @@ func run(pass *analysis.Pass) (any, error) {
 		}
 
 		ast.Inspect(file, func(n ast.Node) bool {
-			fc, ok := n.(*ast.CallExpr)
-			if !ok {
+			switch v := n.(type) {
+			case *ast.CallExpr:
+				return inspectCallExpr(pass, v)
+			case *ast.FuncType:
+				return inspectFuncType(pass, v)
+			default:
 				return true
 			}
-
-			lparen := pass.Fset.Position(fc.Lparen)
-			rparen := pass.Fset.Position(fc.Rparen)
-
-			isSingleLine := true
-			prevEnd := lparen
-
-			edits := make([]analysis.TextEdit, 0)
-			var errorMsg *string
-
-			for i, e := range fc.Args {
-				start := pass.Fset.Position(e.Pos())
-				end := pass.Fset.Position(e.End())
-
-				if i == 0 {
-					isSingleLine = lparen.Line == start.Line
-				}
-
-				switch {
-				case isSingleLine && prevEnd.Line != start.Line:
-					errorMsg = cmp.Or(errorMsg, ptr(singleLineMsg))
-				case !isSingleLine && prevEnd.Line == start.Line:
-					errorMsg = cmp.Or(errorMsg, ptr(multiLineMsg))
-				}
-
-				// fixes will always turn into multiline
-				if prevEnd.Line == start.Line {
-					edits = append(edits, analysis.TextEdit{
-						Pos:     e.Pos(),
-						End:     token.NoPos,
-						NewText: []byte("\n"),
-					})
-				}
-
-				prevEnd = end
-			}
-
-			switch {
-			case isSingleLine && prevEnd.Line != rparen.Line:
-				errorMsg = cmp.Or(errorMsg, ptr(singleLineMsg))
-			case !isSingleLine && prevEnd.Line == rparen.Line:
-				errorMsg = cmp.Or(errorMsg, ptr(multiLineMsg))
-			}
-
-			if prevEnd.Line == rparen.Line {
-				edits = append(edits, analysis.TextEdit{
-					Pos:     fc.Rparen,
-					End:     token.NoPos,
-					NewText: []byte(",\n"),
-				})
-			}
-
-			if errorMsg != nil {
-				pass.Report(analysis.Diagnostic{
-					Pos:     fc.Pos(),
-					End:     fc.End(),
-					Message: *errorMsg,
-					URL:     "",
-					SuggestedFixes: []analysis.SuggestedFix{
-						{
-							Message:   "Make function call multiline",
-							TextEdits: edits,
-						},
-					},
-					Related: []analysis.RelatedInformation{},
-				})
-			}
-
-			return true
 		})
 	}
 
@@ -109,4 +46,146 @@ func run(pass *analysis.Pass) (any, error) {
 
 func ptr[T any](t T) *T {
 	return &t
+}
+
+func inspectCallExpr(pass *analysis.Pass, fc *ast.CallExpr) bool {
+	lparen := pass.Fset.Position(fc.Lparen)
+	rparen := pass.Fset.Position(fc.Rparen)
+
+	isSingleLine := true
+	prevEnd := lparen
+
+	edits := make([]analysis.TextEdit, 0)
+	var errorMsg *string
+
+	for i, e := range fc.Args {
+		start := pass.Fset.Position(e.Pos())
+		end := pass.Fset.Position(e.End())
+
+		if i == 0 {
+			isSingleLine = lparen.Line == start.Line
+		}
+
+		switch {
+		case isSingleLine && prevEnd.Line != start.Line:
+			errorMsg = cmp.Or(errorMsg, ptr(singleLineCallExprMsg))
+		case !isSingleLine && prevEnd.Line == start.Line:
+			errorMsg = cmp.Or(errorMsg, ptr(multiLineCallExprMsg))
+		}
+
+		// fixes will always turn into multiline
+		if prevEnd.Line == start.Line {
+			edits = append(edits, analysis.TextEdit{
+				Pos:     e.Pos(),
+				End:     token.NoPos,
+				NewText: []byte("\n"),
+			})
+		}
+
+		prevEnd = end
+	}
+
+	switch {
+	case isSingleLine && prevEnd.Line != rparen.Line:
+		errorMsg = cmp.Or(errorMsg, ptr(singleLineCallExprMsg))
+	case !isSingleLine && prevEnd.Line == rparen.Line:
+		errorMsg = cmp.Or(errorMsg, ptr(multiLineCallExprMsg))
+	}
+
+	if prevEnd.Line == rparen.Line {
+		edits = append(edits, analysis.TextEdit{
+			Pos:     fc.Rparen,
+			End:     token.NoPos,
+			NewText: []byte(",\n"),
+		})
+	}
+
+	if errorMsg != nil {
+		pass.Report(analysis.Diagnostic{
+			Pos:     fc.Pos(),
+			End:     fc.End(),
+			Message: *errorMsg,
+			URL:     "",
+			SuggestedFixes: []analysis.SuggestedFix{
+				{
+					Message:   "Make function call multiline",
+					TextEdits: edits,
+				},
+			},
+			Related: []analysis.RelatedInformation{},
+		})
+	}
+
+	return true
+}
+
+func inspectFuncType(pass *analysis.Pass, fc *ast.FuncType) bool {
+	lparen := pass.Fset.Position(fc.Params.Opening)
+	rparen := pass.Fset.Position(fc.Params.Closing)
+
+	isSingleLine := true
+	prevEnd := lparen
+
+	edits := make([]analysis.TextEdit, 0)
+	var errorMsg *string
+
+	for i, e := range fc.Params.List {
+		start := pass.Fset.Position(e.Pos())
+		end := pass.Fset.Position(e.End())
+
+		if i == 0 {
+			isSingleLine = lparen.Line == start.Line
+		}
+
+		switch {
+		case isSingleLine && prevEnd.Line != start.Line:
+			errorMsg = cmp.Or(errorMsg, ptr(singleLineCallExprMsg))
+		case !isSingleLine && prevEnd.Line == start.Line:
+			errorMsg = cmp.Or(errorMsg, ptr(multiLineCallExprMsg))
+		}
+
+		// fixes will always turn into multiline
+		if prevEnd.Line == start.Line {
+			edits = append(edits, analysis.TextEdit{
+				Pos:     e.Pos(),
+				End:     token.NoPos,
+				NewText: []byte("\n"),
+			})
+		}
+
+		prevEnd = end
+	}
+
+	switch {
+	case isSingleLine && prevEnd.Line != rparen.Line:
+		errorMsg = cmp.Or(errorMsg, ptr(singleLineFuncTypeMsg))
+	case !isSingleLine && prevEnd.Line == rparen.Line:
+		errorMsg = cmp.Or(errorMsg, ptr(multiLineFuncTypeMsg))
+	}
+
+	if prevEnd.Line == rparen.Line {
+		edits = append(edits, analysis.TextEdit{
+			Pos:     fc.Params.Closing,
+			End:     token.NoPos,
+			NewText: []byte(",\n"),
+		})
+	}
+
+	if errorMsg != nil {
+		pass.Report(analysis.Diagnostic{
+			Pos:     fc.Pos(),
+			End:     fc.End(),
+			Message: *errorMsg,
+			URL:     "",
+			SuggestedFixes: []analysis.SuggestedFix{
+				{
+					Message:   "Make function type multiline",
+					TextEdits: edits,
+				},
+			},
+			Related: []analysis.RelatedInformation{},
+		})
+	}
+
+	return true
 }
